@@ -144,44 +144,50 @@ int64_t worse_query(NSString *target, NSString *group, bool alt_flags, bool crea
     NSError *linkError = nil;
     if ([files createSymbolicLinkAtPath:caches withDestinationPath:target error:&linkError] == false) {
         wq_log(@"Symlink creation failed: %@, return=-4", linkError.localizedDescription);
+        query_free(query);
         dlclose(mgr);
         return -4; // Failed to create symlink
     }
 
     wq_log(@"Caches symlink created; submitting query");
-    // Send our query over
-    void *result = query_get_single_result(query);
-    if (!result) {
-        wq_log(@"containermanagerd rejected query, return=-5");
+    int64_t handle = -5;
+    BOOL cleanupSucceeded = NO;
+    char *token = NULL;
+    @try {
+        // Send our query over
+        void *result = query_get_single_result(query);
+        if (!result) {
+            wq_log(@"containermanagerd rejected query, return=-5");
+        } else {
+            wq_log(@"Query returned a container result");
+            token = copy_sandbox_token(result);
+            if (!token) {
+                handle = -6;
+                wq_log(@"Sandbox token unavailable, return=-6");
+            } else {
+                // Consume sandbox extension and clean up
+                wq_log(@"Sandbox token received (contents omitted); consuming extension");
+                handle = consume_extension(token);
+                if (handle >= 0) wq_log(@"Extension consumed: handle=%lld", (long long)handle);
+                else wq_log(@"Extension consume failed: handle=%lld errno=%d (%s)", (long long)handle, errno, strerror(errno));
+            }
+        }
+    } @finally {
+        if (token) free(token);
         query_free(query);
         dlclose(mgr);
-        clean_symlink(group);
-        return -5; // Query rejected by containermanagerd
-    }
-    wq_log(@"Query returned a container result");
-    char *token = copy_sandbox_token(result);
-    if (!token) {
-        wq_log(@"Sandbox token unavailable, return=-6");
-        query_free(query);
-        dlclose(mgr);
-        clean_symlink(group);
-        return -6; // Kernel refused to issue a sandbox extension
+        cleanupSucceeded = clean_symlink(group);
     }
 
-    // Consume sandbox extension and clean up
-    wq_log(@"Sandbox token received (contents omitted); consuming extension");
-    int64_t handle = consume_extension(token);
-    if (handle >= 0) wq_log(@"Extension consumed: handle=%lld", (long long)handle);
-    else wq_log(@"Extension consume failed: handle=%lld errno=%d (%s)", (long long)handle, errno, strerror(errno));
-    query_free(query);
-    free(token);
-    dlclose(mgr);
-    clean_symlink(group);
+    if (!cleanupSucceeded) {
+        if (handle >= 0) worse_query_release(handle);
+        wq_log(@"Caches cleanup failed, return=-7");
+        return -7;
+    }
 
     wq_log(@"End: return=%lld", (long long)handle);
     return handle;
 }
-
 // You should probably call this when you're done
 void worse_query_release(int64_t handle) {
     if (handle < 0) { wq_log(@"Release skipped: invalid handle=%lld", (long long)handle); return; }
