@@ -56,24 +56,35 @@ static void wq_log(NSString *format, ...) {
                                                       object:nil userInfo:@{@"message": message}];
 }
 
-// Remove symlink and recreate Caches directory
-static void clean_symlink(NSString *group) {
-    if (group != NULL) {
-        NSFileManager *files = [NSFileManager defaultManager];
-        NSURL *groupRoot = [files containerURLForSecurityApplicationGroupIdentifier: group];
-        if (groupRoot) {
-            NSURL *caches = [groupRoot URLByAppendingPathComponent: @"Library/Caches"];
-            NSError *error = nil;
-            BOOL removed = [files removeItemAtURL:caches error:&error];
-            if (!removed && error.code != NSFileNoSuchFileError) wq_log(@"Cleanup: remove symlink failed (%@)", error.localizedDescription);
-            error = nil;
-            BOOL restored = [files createDirectoryAtURL:caches withIntermediateDirectories:false attributes:nil error:&error];
-            wq_log(restored ? @"Cleanup: Caches directory restored" : @"Cleanup: Caches restore failed (%@)", error.localizedDescription ?: @"");
-        }
-    }
-    return;
-}
+// Remove the temporary symlink and recreate the Caches directory.
+static BOOL clean_symlink(NSString *group) {
+    if (group == NULL) return NO;
 
+    NSFileManager *files = [NSFileManager defaultManager];
+    NSURL *groupRoot = [files containerURLForSecurityApplicationGroupIdentifier: group];
+    if (!groupRoot) {
+        wq_log(@"Cleanup: App Group unavailable");
+        return NO;
+    }
+
+    NSURL *caches = [groupRoot URLByAppendingPathComponent: @"Library/Caches"];
+    NSError *error = nil;
+    BOOL removed = [files removeItemAtURL:caches error:&error];
+    if (!removed && error.code != NSFileNoSuchFileError) {
+        wq_log(@"Cleanup: remove symlink failed (%@)", error.localizedDescription);
+        return NO;
+    }
+
+    error = nil;
+    BOOL restored = [files createDirectoryAtURL:caches withIntermediateDirectories:false attributes:nil error:&error];
+    if (!restored) {
+        wq_log(@"Cleanup: Caches restore failed (%@)", error.localizedDescription ?: @"");
+        return NO;
+    }
+
+    wq_log(@"Cleanup: Caches directory restored");
+    return YES;
+}
 // So, who's ready for round two?
 int64_t worse_query(NSString *target, NSString *group, bool alt_flags, bool create_dir) {
     wq_log(@"Begin: target=%@ group=%@ alt_flags=%d create_dir=%d", target, group, alt_flags, create_dir);
