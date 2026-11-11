@@ -62,19 +62,16 @@ jobs:
           } > "$metadata"
           checksum="$IPA.sha256"
           shasum -a 256 "$IPA" > "$checksum"
-          echo "metadata=$metadata" >> "$GITHUB_OUTPUT"
-          echo "checksum=$checksum" >> "$GITHUB_OUTPUT"
+          artifact_dir="$RUNNER_TEMP/GestaltX-artifacts"
+          mkdir -p "$artifact_dir"
+          cp "$IPA" "$checksum" "$metadata" CHANGELOG.md CHANGELOG_ZH-CN.md "$artifact_dir/"
+          echo "directory=$artifact_dir" >> "$GITHUB_OUTPUT"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: GestaltX-${{ steps.build.outputs.version }}
-          path: |
-            ${{ steps.build.outputs.ipa }}
-            ${{ steps.provenance.outputs.checksum }}
-            ${{ steps.provenance.outputs.metadata }}
-            CHANGELOG.md
-            CHANGELOG_ZH-CN.md
+          path: ${{ steps.provenance.outputs.directory }}/*
           if-no-files-found: error
           retention-days: 14
 
