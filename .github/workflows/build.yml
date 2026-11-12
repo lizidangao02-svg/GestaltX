@@ -52,11 +52,6 @@ jobs:
           clang -std=c11 -Wall -Wextra -Werror GestaltX/WQCleanup.c tests/WQCleanupTests.c -o "$RUNNER_TEMP/wq-cleanup-tests"
           "$RUNNER_TEMP/wq-cleanup-tests"
 
-      - name: Run cleanup path tests
-        run: |
-          clang -std=c11 -Wall -Wextra -Werror GestaltX/WQCleanup.c tests/WQCleanupTests.c -o "$RUNNER_TEMP/wq-cleanup-tests"
-          "$RUNNER_TEMP/wq-cleanup-tests"
-
       - name: Build IPA
         id: build
         run: .github/scripts/build-ipa.sh "$RUNNER_TEMP/ipa"
@@ -73,7 +68,7 @@ jobs:
         run: |
           metadata="$RUNNER_TEMP/GestaltX-build.txt"
           {
-            printf 'commit=%s\\n' "$(git rev-parse HEAD)"
+            printf 'commit=%s\n' "$(git rev-parse HEAD)"
             xcodebuild -version
             shasum -a 256 "$IPA"
           } > "$metadata"
@@ -115,20 +110,20 @@ jobs:
           version="${TAG#v}"
           notes="$RUNNER_TEMP/release-notes.md"
           : > "$notes"
-          printf 'English | [简体中文](https://github.com/huamidev/GestaltX/blob/%s/CHANGELOG_ZH-CN.md)\\n\\n' "$TAG" > "$notes"
+          printf 'English | [简体中文](https://github.com/huamidev/GestaltX/blob/%s/CHANGELOG_ZH-CN.md)\n\n' "$TAG" > "$notes"
           awk -v ver="$version" '
-            $0 ~ "^## \\\\[" ver "\\\\]" { found = 1; next }
-            found && /^## \\[/ { exit }
+            $0 ~ "^## \\[" ver "\\]" { found = 1; next }
+            found && /^## \[/ { exit }
             found { if (!started && $0 == "") next; started = 1; print }
           ' dist/CHANGELOG.md >> "$notes"
           if ! grep -q '^### ' "$notes"; then
-            printf 'GestaltX %s\\n' "$TAG" >> "$notes"
+            printf 'GestaltX %s\n' "$TAG" >> "$notes"
           fi
           if ! gh release view "$TAG" >/dev/null 2>&1; then
-            gh release create "$TAG" --verify-tag \\
+            gh release create "$TAG" --verify-tag \
               --title "GestaltX $TAG" --notes-file "$notes"
           fi
-          gh release upload "$TAG" \\
-            "dist/GestaltX_${version}.ipa" \\
-            dist/CHANGELOG.md dist/CHANGELOG_ZH-CN.md \\
+          gh release upload "$TAG" \
+            "dist/GestaltX_${version}.ipa" \
+            dist/CHANGELOG.md dist/CHANGELOG_ZH-CN.md \
             --clobber
