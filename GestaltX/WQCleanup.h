@@ -3,6 +3,7 @@
 
 // Returns 0 when the path is absent or the expected symlink was removed;
 // otherwise returns an errno-style code and leaves unexpected items untouched.
+int wq_remove_empty_directory(const char *path);
 int wq_remove_owned_symlink(const char *path, const char *expected_target);
 
 #endif
