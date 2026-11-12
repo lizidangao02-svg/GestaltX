@@ -7,6 +7,11 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+int wq_remove_empty_directory(const char *path) {
+    if (!path) return EINVAL;
+    return rmdir(path) == 0 ? 0 : errno;
+}
+
 int wq_remove_owned_symlink(const char *path, const char *expected_target) {
     if (!path || !expected_target) return EINVAL;
 
