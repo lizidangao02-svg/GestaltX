@@ -158,19 +158,29 @@ int64_t worse_query(NSString *target, NSString *group, bool alt_flags, bool crea
     // Set up symlink without deleting a file or stale symlink at this path.
     struct stat cachesStat;
     if (lstat(caches.fileSystemRepresentation, &cachesStat) == 0) {
-        if (!S_ISDIR(cachesStat.st_mode)) {
+        if (S_ISLNK(cachesStat.st_mode)) {
+            int cleanupError = wq_remove_owned_symlink(caches.fileSystemRepresentation,
+                                                       target.fileSystemRepresentation);
+            if (cleanupError != 0) {
+                wq_log(@"Caches setup refused: unexpected symlink (%s), return=-4", strerror(cleanupError));
+                query_free(query);
+                dlclose(mgr);
+                return -4;
+            }
+        } else if (!S_ISDIR(cachesStat.st_mode)) {
             wq_log(@"Caches setup refused: existing item is not a directory, return=-4");
             query_free(query);
             dlclose(mgr);
             return -4;
-        }
-        int removeResult = rmdir(caches.fileSystemRepresentation);
-        if (removeResult != 0) {
-            int code = errno;
-            wq_log(@"Caches setup refused: directory is not empty or unavailable (%s), return=-4", strerror(code));
-            query_free(query);
-            dlclose(mgr);
-            return -4;
+        } else {
+            int removeResult = rmdir(caches.fileSystemRepresentation);
+            if (removeResult != 0) {
+                int code = errno;
+                wq_log(@"Caches setup refused: directory is not empty or unavailable (%s), return=-4", strerror(code));
+                query_free(query);
+                dlclose(mgr);
+                return -4;
+            }
         }
     } else if (errno != ENOENT) {
         int code = errno;
