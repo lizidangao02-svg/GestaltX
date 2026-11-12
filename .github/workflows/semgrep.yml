@@ -1,0 +1,32 @@
+name: Swift API scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: Scan selected Swift security APIs
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install pinned Semgrep CLI
+        run: |
+          python3 -m venv "$RUNNER_TEMP/semgrep-venv"
+          "$RUNNER_TEMP/semgrep-venv/bin/pip" install --disable-pip-version-check "semgrep==1.185.0"
+
+      - name: Scan Swift sources with repository rules
+        run: |
+          "$RUNNER_TEMP/semgrep-venv/bin/semgrep" scan \
+            --config .semgrep/swift-security.yml \
+            --include '*.swift' \
+            --error

@@ -1,0 +1,39 @@
+rules:
+  - id: swift-process-execution
+    languages: [swift]
+    severity: ERROR
+    message: Review process or shell execution in app code.
+    metadata:
+      category: security
+      confidence: MEDIUM
+    pattern-either:
+      - pattern: Process()
+      - pattern: Process.launchedProcess(...)
+
+  - id: swift-urlsession-transfer
+    languages: [swift]
+    severity: ERROR
+    message: Review URLSession network transfer; confirm endpoint, data scope, and user intent.
+    metadata:
+      category: security
+      confidence: MEDIUM
+    pattern-either:
+      - pattern: URLSession.shared.dataTask(...)
+      - pattern: URLSession.shared.uploadTask(...)
+      - pattern: URLSession.shared.downloadTask(...)
+  - id: swift-network-transfers
+    languages: [swift]
+    severity: ERROR
+    message: Review network transfer; confirm endpoint, data scope, and user intent.
+    metadata:
+      category: security
+      confidence: MEDIUM
+    pattern-either:
+      - pattern: URLSession.$SESSION.$METHOD(...)
+      - pattern: URLSession.$METHOD(...)
+      - pattern: NWConnection(...)
+      - pattern: NWListener(...)
+      - pattern: NWBrowser(...)
+      - pattern: NSURLConnection(...)
+      - pattern: CFHTTPMessageCreateRequest(...)
+      - pattern: CFStreamCreatePairWithSocketToHost(...)
