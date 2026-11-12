@@ -29,6 +29,8 @@ jobs:
     timeout-minutes: 40
     permissions:
       contents: read
+      id-token: write
+      attestations: write
     outputs:
       version: ${{ steps.build.outputs.version }}
     env:
@@ -48,6 +50,11 @@ jobs:
       - name: Build IPA
         id: build
         run: .github/scripts/build-ipa.sh "$RUNNER_TEMP/ipa"
+
+      - name: Attest IPA provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: ${{ steps.build.outputs.ipa }}
 
       - name: Record build provenance
         id: provenance

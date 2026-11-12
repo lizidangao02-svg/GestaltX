@@ -32,6 +32,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include "worse_query.h"
+#include "WQCleanup.h"
 
 typedef void *(*container_query_create_fn)(void);
 typedef void (*container_query_set_class_fn)(void *, uint64_t);
@@ -56,9 +57,9 @@ static void wq_log(NSString *format, ...) {
                                                       object:nil userInfo:@{@"message": message}];
 }
 
-// Remove the temporary symlink and recreate the Caches directory.
-static BOOL clean_symlink(NSString *group) {
-    if (group == NULL) return NO;
+// Remove only this query's symlink and recreate the Caches directory.
+static BOOL clean_symlink(NSString *group, NSString *target) {
+    if (group == NULL || target == NULL) return NO;
 
     NSFileManager *files = [NSFileManager defaultManager];
     NSURL *groupRoot = [files containerURLForSecurityApplicationGroupIdentifier: group];
@@ -67,16 +68,19 @@ static BOOL clean_symlink(NSString *group) {
         return NO;
     }
 
-    NSURL *caches = [groupRoot URLByAppendingPathComponent: @"Library/Caches"];
-    NSError *error = nil;
-    BOOL removed = [files removeItemAtURL:caches error:&error];
-    if (!removed && error.code != NSFileNoSuchFileError) {
-        wq_log(@"Cleanup: remove symlink failed (%@)", error.localizedDescription);
+    NSString *cachesPath = [[groupRoot URLByAppendingPathComponent: @"Library/Caches"] path];
+    int cleanupError = wq_remove_owned_symlink(cachesPath.fileSystemRepresentation,
+                                               target.fileSystemRepresentation);
+    if (cleanupError != 0) {
+        wq_log(@"Cleanup: refusing to remove unexpected Caches item (%s)", strerror(cleanupError));
         return NO;
     }
 
-    error = nil;
-    BOOL restored = [files createDirectoryAtURL:caches withIntermediateDirectories:false attributes:nil error:&error];
+    NSError *error = nil;
+    BOOL restored = [files createDirectoryAtPath:cachesPath
+                     withIntermediateDirectories:false
+                                      attributes:nil
+                                           error:&error];
     if (!restored) {
         wq_log(@"Cleanup: Caches restore failed (%@)", error.localizedDescription ?: @"");
         return NO;
@@ -150,8 +154,29 @@ int64_t worse_query(NSString *target, NSString *group, bool alt_flags, bool crea
     }
 
     wq_log(@"Query configured: class=7 part=3 flags=%@", alt_flags ? @"0x0000000800000000" : @"0x0000008000000000");
-    // Set up symlink
-    [files removeItemAtPath: caches error: nil];
+    // Set up symlink without deleting a file or stale symlink at this path.
+    struct stat cachesStat;
+    if (lstat(caches.fileSystemRepresentation, &cachesStat) == 0) {
+        if (!S_ISDIR(cachesStat.st_mode)) {
+            wq_log(@"Caches setup refused: existing item is not a directory, return=-4");
+            query_free(query);
+            dlclose(mgr);
+            return -4;
+        }
+        NSError *removeError = nil;
+        if (![files removeItemAtPath:caches error:&removeError]) {
+            wq_log(@"Caches setup failed: %@, return=-4", removeError.localizedDescription ?: @"");
+            query_free(query);
+            dlclose(mgr);
+            return -4;
+        }
+    } else if (errno != ENOENT) {
+        int code = errno;
+        wq_log(@"Caches setup stat failed: errno=%d (%s), return=-4", code, strerror(code));
+        query_free(query);
+        dlclose(mgr);
+        return -4;
+    }
     NSError *linkError = nil;
     if ([files createSymbolicLinkAtPath:caches withDestinationPath:target error:&linkError] == false) {
         wq_log(@"Symlink creation failed: %@, return=-4", linkError.localizedDescription);
@@ -187,7 +212,7 @@ int64_t worse_query(NSString *target, NSString *group, bool alt_flags, bool crea
         if (token) free(token);
         query_free(query);
         dlclose(mgr);
-        cleanupSucceeded = clean_symlink(group);
+        cleanupSucceeded = clean_symlink(group, target);
     }
 
     if (!cleanupSucceeded) {
