@@ -60,6 +60,18 @@ int main(void) {
     CHECK(lstat(path, &info) != 0 && errno == ENOENT);
     CHECK(access(target, F_OK) == 0);
 
+    CHECK(mkdir(path, 0700) == 0);
+    CHECK(snprintf(child, sizeof(child), "%s/keep", path) < (int)sizeof(child));
+    CHECK(write_file(child, "preserve non-empty cache directory") == 0);
+    CHECK(wq_remove_empty_directory(path) != 0);
+    CHECK(access(child, F_OK) == 0);
+    CHECK(unlink(child) == 0);
+    CHECK(rmdir(path) == 0);
+
+    CHECK(mkdir(path, 0700) == 0);
+    CHECK(wq_remove_empty_directory(path) == 0);
+    CHECK(access(path, F_OK) != 0 && errno == ENOENT);
+
     CHECK(unlink(target) == 0);
     CHECK(unlink(other_target) == 0);
     CHECK(rmdir(root) == 0);
