@@ -52,6 +52,11 @@ jobs:
           clang -std=c11 -Wall -Wextra -Werror GestaltX/WQCleanup.c tests/WQCleanupTests.c -o "$RUNNER_TEMP/wq-cleanup-tests"
           "$RUNNER_TEMP/wq-cleanup-tests"
 
+      - name: Run cleanup path tests
+        run: |
+          clang -std=c11 -Wall -Wextra -Werror GestaltX/WQCleanup.c tests/WQCleanupTests.c -o "$RUNNER_TEMP/wq-cleanup-tests"
+          "$RUNNER_TEMP/wq-cleanup-tests"
+
       - name: Build IPA
         id: build
         run: .github/scripts/build-ipa.sh "$RUNNER_TEMP/ipa"
