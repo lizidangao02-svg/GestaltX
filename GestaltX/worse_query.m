@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <xpc/xpc.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #include <errno.h>
 #include <string.h>
 #include <stdarg.h>
@@ -163,9 +164,10 @@ int64_t worse_query(NSString *target, NSString *group, bool alt_flags, bool crea
             dlclose(mgr);
             return -4;
         }
-        NSError *removeError = nil;
-        if (![files removeItemAtPath:caches error:&removeError]) {
-            wq_log(@"Caches setup failed: %@, return=-4", removeError.localizedDescription ?: @"");
+        int removeResult = rmdir(caches.fileSystemRepresentation);
+        if (removeResult != 0) {
+            int code = errno;
+            wq_log(@"Caches setup refused: directory is not empty or unavailable (%s), return=-4", strerror(code));
             query_free(query);
             dlclose(mgr);
             return -4;
